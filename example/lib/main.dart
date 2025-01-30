@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -5,12 +6,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vocsy_epub_viewer/epub_viewer.dart';
 
 void main() async {
   runApp(MyApp());
 }
 
+
+// Add these methods in _MyAppState class
+Future<void> saveLastLocation(String bookKey, String locatorJson) async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setString('lastLocation_$bookKey', locatorJson);
+}
+
+Future<String?> getLastLocation(String bookKey) async {
+  final prefs = await SharedPreferences.getInstance();
+  return prefs.getString('lastLocation_$bookKey');
+}
 class MyApp extends StatefulWidget {
   @override
   _MyAppState createState() => _MyAppState();
@@ -140,21 +153,60 @@ class _MyAppState extends State<MyApp> {
                           scrollDirection: EpubScrollDirection.ALLDIRECTIONS,
                           allowSharing: true,
                           enableTts: true,
-                          nightMode: true,
+                          nightMode: false,
                         );
-                        // get current locator
-                        VocsyEpub.locatorStream.listen((locator) {
-                          print('LOCATOR: $locator');
-                        });
-                        await VocsyEpub.openAsset(
-                          'assets/4.epub',
-                          lastLocation: EpubLocator.fromJson({
-                            "bookId": "2239",
-                            "href": "/OEBPS/ch06.xhtml",
-                            "created": 1539934158390,
-                            "locations": {"cfi": "epubcfi(/0!/4/4[simple_book]/2/2/6)"}
-                          }),
-                        );
+                        // // get current locator
+                        // VocsyEpub.locatorStream.listen((locator) {
+                        //   print('LOCATOR: $locator');
+                        // });
+                        // await VocsyEpub.openAsset(
+                        //   'assets/4.epub',
+                        //   lastLocation: EpubLocator.fromJson({
+                        //     "bookId": "2239",
+                        //     "href": "/OEBPS/ch06.xhtml",
+                        //     "created": 1539934158390,
+                        //     "locations": {"cfi": "epubcfi(/0!/4/4[simple_book]/2/2/6)"}
+                        //   }),
+                        // );
+
+
+                            // Get saved position
+    const assetPath = 'assets/4.epub'; // Use consistent identifier
+
+    // Get saved position
+    final String? savedLocatorJson = await getLastLocation(assetPath);
+    EpubLocator? savedLocator;
+    if (savedLocatorJson != null) {
+      Map<String, dynamic> tmp =  json.decode( json.decode(savedLocatorJson));
+      print("savedLocatorJson:$tmp");
+      savedLocator = EpubLocator.fromJson(tmp);
+    }
+
+    VocsyEpub.locatorStream.listen((locator) {
+      print('LOCATOR: $locator');
+
+      saveLastLocation(assetPath, jsonEncode(locator));
+
+    });
+
+    if (savedLocator != null){
+      await VocsyEpub.openAsset(
+        assetPath,
+        lastLocation: savedLocator,
+      );
+    } else {
+      await VocsyEpub.openAsset(
+        'assets/4.epub',
+        lastLocation: EpubLocator.fromJson({
+          "bookId": "2239",
+          "href": "/OEBPS/ch06.xhtml",
+          "created": 1539934158390,
+          "locations": {"cfi": "epubcfi(/0!/4/4[simple_book]/2/2/6)"}
+        }),
+      );
+    }
+
+
                       },
                       child: Text('Open Assets E-pub'),
                     ),
